@@ -81,4 +81,26 @@ train_set, val_set = torch.utils.data.random_split(data_set, [22000, 3000])
 train_loader = DataLoader(dataset = train_set, batch_size = 32, shuffle = True, drop_last= True)
 val_loader = DataLoader(dataset = val_set, batch_size = 32, shuffle = True, drop_last= True)
 
+model = torchvision.models.googlenet(pretrained = True)
+model.to(device)
 
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr = 1e-3)
+
+for epoch in range(2):
+    losses = []
+    for batch_index, (image,label) in enumerate(train_loader):
+        image = image.to(device)
+        label = label.to(device)
+        
+        scores = model(images)
+        loss = criterion(scores, label)
+        
+        losses.append(loss.item())
+        
+        optimizer.zero_grad()
+        
+        loss.backward()
+        optimizer.step()
+        
+    print(f"cost at epoch {epoch} is {sum(losses)/len(losses)}")
