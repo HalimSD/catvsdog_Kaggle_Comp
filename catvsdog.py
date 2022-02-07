@@ -16,6 +16,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import torchvision.transforms as transforms
 import numpy as np
+import pandas as pd
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -112,3 +113,36 @@ with torch.no_grad():
     accuracy = 100. * correct / len(val_loader.dataset)
     accuracy_list.append(accuracy)
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(test_loss, correct, len(val_loader.dataset),accuracy))
+
+
+
+# model testing
+
+test_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225], inplace = True)
+])
+
+testset = MyDataSet(test_dir, test_files, mode='test', transform = test_transform)
+testloader = DataLoader(testset, batch_size = 32, shuffle=False)
+
+
+model.eval()
+fn_list = []
+pred_list = []
+for image, label in testloader:
+    with torch.no_grad():
+        image = image.to(device)
+        output = model(image)
+        pred = torch.argmax(output, dim=1)
+        fn_list += [n[:-4] for n in label]
+        pred_list += [p.item() for p in pred]
+
+submission = pd.DataFrame({"id":fn_list, "label":pred_list})
+submission.to_csv('prediction_googlenet.csv', index=False)
+
+
+
