@@ -49,7 +49,6 @@ class MyDataSet(Dataset):
         if self.transform:
             image = self.transform(image)
         if self.mode == 'train':
-#             print(type(np(image)))
             image = np.array(image)
             return image.astype('float32') , self.label
         else:
@@ -94,68 +93,22 @@ for epoch in range(3):
         
     print(f"cost at epoch {epoch} is {sum(losses)/len(losses)}")
 
-torch.save(model.state_dict(), '/kaggle/working/ckpt_densenet121_catdog.pt')
+torch.save(model.state_dict(), '/kaggle/working/ckpt_net_catdog.pt')
+# model.load_state_dict(torch.load('/kaggle/working/data/ckpt_net_catdog.pt'))
 
-test_transform = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225], inplace = True)
-])
 
-testset = MyDataSet(test_dir, test_files, mode='test', transform = test_transform)
-testloader = DataLoader(testset, batch_size = 32, shuffle=False)
+# model evaluation on the validation set
+with torch.no_grad():
+    accuracy_list = []
+    test_loss = 0
+    correct = 0
+    for data, target in val_loader:
+        output = model(data)
+        test_loss += criterion(output, target).item()                                                              
+        pred = output.data.max(1, keepdim=True)[1]                                                                
+        correct += pred.eq(target.data.view_as(pred)).cpu().sum().item()
 
-def check_accuracy(loader, model):
-    num_correct = 0
-    num_sample = 0
-    
-    model.eval()
-    with torch.no_grad():
-        for batch_index, (x, y) in enumerate(testloader):
-            x = x.to(device)
-            
-            scores = model(x)
-            pred = torch.argmax(scores, dim=1)
-            
-            num_correct += (pred ==1).sum()
-            num_sample += pred.size(0)
-        print (f'Got {num_correct / num_sample} with accuracy {float(num_correct/num_sample)*100}')
-    model.train()
-
-print('checking accuracy on test set')
-check_accuracy(testloader, model)
-
-data_set = MyDataSet(csv_file = './data/data.csv', root_dir = 'data/train', transform = transforms.Compose([
-    (lambda y: torch.zeros(2, dtype=torch.float32).scatter_(0, torch.tensor(y), value=1).long()),
-    transforms.ToTensor()]))
-
-train_set, val_set = torch.utils.data.random_split(data_set, [22000, 3000])
-
-train_loader = DataLoader(dataset = train_set, batch_size = 32, shuffle = True, drop_last= True)
-val_loader = DataLoader(dataset = val_set, batch_size = 32, shuffle = True, drop_last= True)
-
-model = torchvision.models.googlenet(pretrained = True)
-model.to(device)
-
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr = 1e-3)
-
-for epoch in range(2):
-    losses = []
-    for batch_index, (image,label) in enumerate(train_loader):
-        image = image.to(device)
-        label = label.to(device)
-        
-        scores = model(images)
-        loss = criterion(scores, label)
-        
-        losses.append(loss.item())
-        
-        optimizer.zero_grad()
-        
-        loss.backward()
-        optimizer.step()
-        
-    print(f"cost at epoch {epoch} is {sum(losses)/len(losses)}")
+    test_loss /= len(val_loader.dataset)
+    accuracy = 100. * correct / len(val_loader.dataset)
+    accuracy_list.append(accuracy)
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(test_loss, correct, len(val_loader.dataset),accuracy))
